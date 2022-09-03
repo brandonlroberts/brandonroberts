@@ -1,37 +1,38 @@
-name: 'Publish application'
-on: push
+name: Deploy Blazor WASM to GitHub Page
+env:
+  PUBLISH_DIR: brandonlroberts/bin/Release/net6/publish/wwwroot
+
+# Controls when the action will run
+on:
+  push:
+    branches: [ master ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-        # Checkout the code
-        - uses: actions/checkout@v2
+    - uses: actions/checkout@v2
 
-        # Install .NET Core SDK
-        - name: Setup .NET Core
-          uses: actions/setup-dotnet@v2
-          with:
-            dotnet-version: 6
+    - name: Publish application
+      run: dotnet publish -c Release
+    
+    # base href url value should be changed so that resources like CSS and scripts can load properly. 
+    - name: Rewrite base href
+      if: success()
+      uses: SteveSandersonMS/ghaction-rewrite-base-href@v1
+      with:
+        html_path: ${{ env.PUBLISH_DIR }}/index.html
+        base_href: brandonlroberts
+        
+    # add .nojekyll file to tell GitHub pages to not treat this as a Jekyll project. (Allow files and folders starting with an underscore)
+    - name: Add .nojekyll file
+      run: touch ${{ env.PUBLISH_DIR }}/.nojekyll
 
-        # Run tests
-        - name: Test
-          run: dotnet test
-
-        # Generate the website
-        - name: Publish
-          run: dotnet publish brandonlroberts.csproj --configuration Release
-
-        # Publish the website
-        - name: GitHub Pages action
-          if: ${{ github.ref == 'refs/heads/master' }} # Publish only when the push is on master
-          uses: brandonlroberts/actions-gh-pages@v3.6.1
-          with:
-            github_token: ${{ secrets.PUBLISH_TOKEN }}
-            publish_branch: gh-pages
-            publish_dir: bin/Release/netstandard2.1/publish/wwwroot
-            allow_empty_commit: false
-            keep_files: false
-            force_orphan: true
-            # TODO uncomment the following line if you have a custom domain name
-            # cname: demo.meziantou.net
+    - name: Commit to GitHub pages Repo
+      if: success()
+      uses: crazy-max/ghaction-github-pages@v1.5.1
+      with:
+        target_branch: gh-pages
+        build_dir: ${{ env.PUBLISH_DIR }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
